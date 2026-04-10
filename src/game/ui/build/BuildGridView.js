@@ -1,4 +1,3 @@
-import Phaser from 'phaser';
 import { BUILD_GRID } from '../../build/buildConstants.js';
 import { getPartDefinition } from '../../build/partsCatalog.js';
 import { drawPanel } from '../panel.js';
@@ -11,11 +10,14 @@ export class BuildGridView {
     this.placements = [];
     this.selectionId = null;
     this.ghost = null;
+    this.suppressedPlacementId = null;
+    this.attachmentOrigins = [];
 
     this.background = scene.add.graphics();
     this.grid = scene.add.graphics();
     this.placementsGraphics = scene.add.graphics();
     this.ghostGraphics = scene.add.graphics();
+    this.attachmentGraphics = scene.add.graphics();
     this.headerText = scene.add.text(0, 0, 'Assembly Grid', {
       fontFamily: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif',
       fontSize: '24px',
@@ -24,10 +26,11 @@ export class BuildGridView {
     });
     this.headerText.setOrigin(0, 0);
 
-    this.helperText = scene.add.text(0, 0, 'Drag from the palette, snap to the grid, then launch when the stack is valid.', {
+    this.helperText = scene.add.text(0, 0, 'Green points show valid snap starts. Drag placed parts to reposition them.', {
       fontFamily: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif',
       fontSize: '15px',
-      color: '#9ab7d5'
+      color: '#9ab7d5',
+      wordWrap: { width: 360 }
     });
     this.helperText.setOrigin(0, 0);
   }
@@ -36,16 +39,14 @@ export class BuildGridView {
     this.rect = rect;
     this.metrics = metrics;
 
-    const headerHeight = Math.round(54 * metrics.uiScale);
+    const headerHeight = Math.round(66 * metrics.uiScale);
     const padding = Math.round(18 * metrics.uiScale);
-    const footerHeight = Math.round(28 * metrics.uiScale);
+    const footerHeight = Math.round(26 * metrics.uiScale);
     const availableWidth = rect.width - padding * 2;
     const availableHeight = rect.height - padding * 2 - headerHeight - footerHeight;
     const cellSize = Math.max(
       18,
-      Math.floor(
-        Math.min(availableWidth / BUILD_GRID.cols, availableHeight / BUILD_GRID.rows)
-      )
+      Math.floor(Math.min(availableWidth / BUILD_GRID.cols, availableHeight / BUILD_GRID.rows))
     );
 
     const boardWidth = cellSize * BUILD_GRID.cols;
@@ -54,26 +55,23 @@ export class BuildGridView {
     const boardY = rect.y + headerHeight + padding + Math.max(0, (availableHeight - boardHeight) * 0.5);
 
     this.cellSize = cellSize;
-    this.boardRect = {
-      x: boardX,
-      y: boardY,
-      width: boardWidth,
-      height: boardHeight
-    };
+    this.boardRect = { x: boardX, y: boardY, width: boardWidth, height: boardHeight };
 
     this.headerText.setPosition(rect.x + padding, rect.y + padding);
     this.headerText.setFontSize(Math.max(18, Math.round(24 * metrics.uiScale)));
 
-    this.helperText.setPosition(rect.x + padding, this.headerText.y + this.headerText.height + Math.round(6 * metrics.uiScale));
+    this.helperText.setPosition(rect.x + padding, this.headerText.y + this.headerText.height + 6);
     this.helperText.setFontSize(Math.max(12, Math.round(14 * metrics.uiScale)));
     this.helperText.setWordWrapWidth(rect.width - padding * 2);
 
     this.render();
   }
 
-  setBuildState(placements, selectionId) {
+  setBuildState(placements, selectionId, options = {}) {
     this.placements = placements;
     this.selectionId = selectionId;
+    this.suppressedPlacementId = options.suppressedPlacementId ?? null;
+    this.attachmentOrigins = options.attachmentOrigins ?? [];
     this.render();
   }
 
@@ -127,6 +125,10 @@ export class BuildGridView {
     const hit = [...this.placements]
       .reverse()
       .find((placement) => {
+        if (placement.id === this.suppressedPlacementId) {
+          return false;
+        }
+
         const definition = getPartDefinition(placement.partId);
         return (
           gridX >= placement.origin.x &&
@@ -152,22 +154,17 @@ export class BuildGridView {
     });
 
     this.grid.clear();
-    this.grid.fillStyle(0x08101c, 0.9);
-    this.grid.fillRoundedRect(
-      this.boardRect.x - 10,
-      this.boardRect.y - 10,
-      this.boardRect.width + 20,
-      this.boardRect.height + 20,
-      18
-    );
+    this.grid.fillStyle(0x08101c, 0.92);
+    this.grid.fillRoundedRect(this.boardRect.x - 10, this.boardRect.y - 10, this.boardRect.width + 20, this.boardRect.height + 20, 18);
 
     for (let column = 0; column < BUILD_GRID.cols; column += 1) {
       for (let row = 0; row < BUILD_GRID.rows; row += 1) {
         const cellX = this.boardRect.x + column * this.cellSize;
         const cellY = this.boardRect.y + row * this.cellSize;
-        const isCenterColumn = BUILD_GRID.minX + column === 0;
+        const gridX = BUILD_GRID.minX + column;
+        const isCenterColumn = gridX === 0;
 
-        this.grid.fillStyle(isCenterColumn ? 0x132b46 : 0x0d1726, isCenterColumn ? 0.8 : 0.72);
+        this.grid.fillStyle(isCenterColumn ? 0x173555 : 0x0d1726, isCenterColumn ? 0.92 : 0.74);
         this.grid.fillRect(cellX + 1, cellY + 1, this.cellSize - 2, this.cellSize - 2);
       }
     }
@@ -177,14 +174,31 @@ export class BuildGridView {
       const x = this.boardRect.x + column * this.cellSize;
       this.grid.lineBetween(x, this.boardRect.y, x, this.boardRect.y + this.boardRect.height);
     }
-
     for (let row = 0; row <= BUILD_GRID.rows; row += 1) {
       const y = this.boardRect.y + row * this.cellSize;
       this.grid.lineBetween(this.boardRect.x, y, this.boardRect.x + this.boardRect.width, y);
     }
 
+    const anchorX = this.boardRect.x + (0 - BUILD_GRID.minX + 0.5) * this.cellSize;
+    this.grid.lineStyle(4, 0x74c2ff, 0.38);
+    this.grid.lineBetween(anchorX, this.boardRect.y, anchorX, this.boardRect.y + this.boardRect.height);
+
+    this.attachmentGraphics.clear();
+    this.attachmentOrigins.forEach((origin) => {
+      const x = this.boardRect.x + (origin.x - BUILD_GRID.minX + 0.5) * this.cellSize;
+      const y = this.boardRect.y + (origin.y + 0.5) * this.cellSize;
+      this.attachmentGraphics.fillStyle(0x7fe590, 0.28);
+      this.attachmentGraphics.fillCircle(x, y, Math.max(4, this.cellSize * 0.18));
+      this.attachmentGraphics.lineStyle(2, 0xaef9b9, 0.75);
+      this.attachmentGraphics.strokeCircle(x, y, Math.max(4, this.cellSize * 0.18));
+    });
+
     this.placementsGraphics.clear();
     this.placements.forEach((placement) => {
+      if (placement.id === this.suppressedPlacementId) {
+        return;
+      }
+
       const definition = getPartDefinition(placement.partId);
       const rect = this.#getPixelRectForPlacement(placement);
       const selected = placement.id === this.selectionId;
@@ -194,63 +208,24 @@ export class BuildGridView {
       this.placementsGraphics.fillStyle(definition.accentColor, 0.9);
       this.placementsGraphics.fillRect(rect.x + 10, rect.y + 10, rect.width - 20, Math.max(8, rect.height * 0.18));
 
-      if (placement.partId === 'engine') {
-        this.placementsGraphics.fillStyle(0xffb36f, 1);
-        this.placementsGraphics.fillTriangle(
-          rect.x + rect.width * 0.5,
-          rect.y + rect.height - 8,
-          rect.x + 10,
-          rect.y + rect.height * 0.5,
-          rect.x + rect.width - 10,
-          rect.y + rect.height * 0.5
-        );
-      }
-
-      if (placement.partId === 'side_booster') {
-        this.placementsGraphics.fillStyle(0xd8e2ff, 0.85);
-        this.placementsGraphics.fillRect(
-          rect.x + rect.width * 0.28,
-          rect.y + rect.height * 0.18,
-          rect.width * 0.44,
-          rect.height * 0.52
-        );
-      }
-
       this.placementsGraphics.lineStyle(selected ? 4 : 2, selected ? 0xffd98f : 0xe9f4ff, selected ? 1 : 0.55);
       this.placementsGraphics.strokeRoundedRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6, 14);
     });
 
     this.ghostGraphics.clear();
     if (this.ghost?.origin && this.ghost?.partId) {
-      const definition = getPartDefinition(this.ghost.partId);
-      const rect = this.#getPixelRectForPlacement({
-        partId: this.ghost.partId,
-        origin: this.ghost.origin
-      });
-
-      this.ghostGraphics.fillStyle(this.ghost.valid ? 0x78db86 : 0xff6f67, 0.28);
+      const rect = this.#getPixelRectForPlacement({ partId: this.ghost.partId, origin: this.ghost.origin });
+      const valid = this.ghost.valid;
+      this.ghostGraphics.fillStyle(valid ? 0x78db86 : 0xff6f67, 0.32);
       this.ghostGraphics.fillRoundedRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10, 14);
-      this.ghostGraphics.lineStyle(3, this.ghost.valid ? 0xa5ffb2 : 0xffb0aa, 1);
+      this.ghostGraphics.lineStyle(3, valid ? 0xa5ffb2 : 0xffb0aa, 1);
       this.ghostGraphics.strokeRoundedRect(rect.x + 4, rect.y + 4, rect.width - 8, rect.height - 8, 14);
-
-      if (definition?.id === 'engine') {
-        this.ghostGraphics.fillStyle(this.ghost.valid ? 0xa5ffb2 : 0xffb0aa, 0.7);
-        this.ghostGraphics.fillTriangle(
-          rect.x + rect.width * 0.5,
-          rect.y + rect.height - 10,
-          rect.x + 12,
-          rect.y + rect.height * 0.55,
-          rect.x + rect.width - 12,
-          rect.y + rect.height * 0.55
-        );
-      }
     }
   }
 
   #getPixelRectForPlacement(placement) {
     const definition = getPartDefinition(placement.partId);
     const column = placement.origin.x - BUILD_GRID.minX;
-
     return {
       x: this.boardRect.x + column * this.cellSize,
       y: this.boardRect.y + placement.origin.y * this.cellSize,

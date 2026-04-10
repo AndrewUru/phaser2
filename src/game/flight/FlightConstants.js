@@ -1,4 +1,4 @@
-const defaultFlightConstants = {
+export const DEFAULT_FLIGHT_CONSTANTS = {
   gravity: 12,
   atmosphereHeight: 2800,
   minAirDensity: 0.18,
@@ -36,8 +36,16 @@ const defaultFlightConstants = {
 };
 
 export const FLIGHT_CONSTANTS = {
-  ...defaultFlightConstants
+  ...DEFAULT_FLIGHT_CONSTANTS
 };
+
+export function resetFlightTuningToDefaults() {
+  Object.keys(DEFAULT_FLIGHT_CONSTANTS).forEach((key) => {
+    FLIGHT_CONSTANTS[key] = DEFAULT_FLIGHT_CONSTANTS[key];
+  });
+
+  return FLIGHT_CONSTANTS;
+}
 
 if (typeof globalThis !== 'undefined') {
   globalThis.__rocketFlightTuning = FLIGHT_CONSTANTS;

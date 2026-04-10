@@ -20,6 +20,12 @@ export class BuildState {
     return this.placements.map((placement) => structuredClone(placement));
   }
 
+  setPlacements(nextPlacements) {
+    this.placements = structuredClone(nextPlacements);
+    this.selectedPlacementId = null;
+    this.nextPlacementIndex = getInitialCounter(this.placements);
+  }
+
   getSelectedPlacementId() {
     return this.selectedPlacementId;
   }
@@ -93,5 +99,28 @@ export class BuildState {
   clear() {
     this.placements = [];
     this.selectedPlacementId = null;
+  }
+
+  movePlacement(placementId, origin) {
+    const placement = this.getPlacementById(placementId);
+    if (!placement) {
+      return { success: false, reason: 'Unknown placement.' };
+    }
+
+    const evaluation = this.canPlacePart(placement.partId, origin, {
+      ignorePlacementId: placementId
+    });
+
+    if (!evaluation.valid) {
+      return { success: false, reason: evaluation.reason };
+    }
+
+    placement.origin = structuredClone(origin);
+    this.selectedPlacementId = placementId;
+
+    return {
+      success: true,
+      placement: structuredClone(placement)
+    };
   }
 }

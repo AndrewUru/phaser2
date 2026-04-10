@@ -34,6 +34,8 @@ export class FlightRenderer {
     this.partRects = [];
     this.exhaustPorts = [];
     this.cameraAltitude = 0;
+    this.shakeTimer = 0;
+    this.shakeStrength = 0;
 
     this.skyGraphics = scene.add.graphics();
     this.worldGraphics = scene.add.graphics();
@@ -127,10 +129,16 @@ export class FlightRenderer {
 
     this.cameraAltitude += (targetCameraAltitude - this.cameraAltitude) * alpha;
     state.cameraAltitude = this.cameraAltitude;
+    this.shakeTimer = Math.max(0, this.shakeTimer - dt);
 
     this.#drawDynamicWorld(state);
     this.#updateRocket(state);
     this.#updateHud(state);
+  }
+
+  triggerShake(strength = 10, duration = 0.22) {
+    this.shakeStrength = strength;
+    this.shakeTimer = duration;
   }
 
   getDebugSnapshot(state) {
@@ -228,6 +236,8 @@ export class FlightRenderer {
     const worldScale = FLIGHT_CONSTANTS.worldPixelsPerUnit * this.metrics.shorterSide / 720;
     const padCenterX = worldRect.x + worldRect.width * 0.5;
     const groundScreenY = worldRect.y + worldRect.height * 0.84 + this.cameraAltitude * worldScale;
+    const shakeOffsetY = this.shakeTimer > 0 ? (Math.random() * 2 - 1) * this.shakeStrength : 0;
+    const shakeOffsetX = this.shakeTimer > 0 ? (Math.random() * 2 - 1) * this.shakeStrength * 0.5 : 0;
 
     this.worldGraphics.clear();
     this.padGraphics.clear();
@@ -259,9 +269,17 @@ export class FlightRenderer {
     this.padGraphics.lineStyle(2, 0x89b3e0, 0.25);
     this.padGraphics.lineBetween(worldRect.x, groundScreenY, worldRect.x + worldRect.width, groundScreenY);
 
+    const targetY = groundScreenY - state.targetAltitude * worldScale;
+    if (targetY >= worldRect.y && targetY <= worldRect.y + worldRect.height) {
+      this.worldGraphics.lineStyle(3, 0x9de2ae, 0.55);
+      this.worldGraphics.lineBetween(worldRect.x + 20, targetY, worldRect.x + worldRect.width - 20, targetY);
+      this.worldGraphics.fillStyle(0x9de2ae, 0.92);
+      this.worldGraphics.fillCircle(worldRect.x + 20, targetY, 5);
+    }
+
     this.worldScale = worldScale;
-    this.padCenterX = padCenterX;
-    this.groundScreenY = groundScreenY;
+    this.padCenterX = padCenterX + shakeOffsetX;
+    this.groundScreenY = groundScreenY + shakeOffsetY;
   }
 
   #updateRocket(state) {
@@ -326,6 +344,15 @@ export class FlightRenderer {
     } else if (state.stageReady) {
       this.statusText.setColor('#ffd777');
       this.statusText.setText('Stage separation ready');
+    } else if (state.fuelRemaining <= Math.max(10, state.totalFuelCapacity * 0.18)) {
+      this.statusText.setColor('#ffd777');
+      this.statusText.setText('Low fuel');
+    } else if (Math.abs(state.angle) * (180 / Math.PI) >= FLIGHT_CONSTANTS.tiltWarningDegrees) {
+      this.statusText.setColor('#ffb38f');
+      this.statusText.setText('High tilt danger');
+    } else if (state.maxAltitude >= state.targetAltitude * 0.82) {
+      this.statusText.setColor('#8de0a2');
+      this.statusText.setText('Target altitude close');
     } else if (state.thrustActive) {
       this.statusText.setColor('#9ab7d5');
       this.statusText.setText(`Throttle ${Math.round(state.throttle * 100)}%`);

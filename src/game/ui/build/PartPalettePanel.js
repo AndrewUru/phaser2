@@ -7,6 +7,7 @@ export class PartPalettePanel {
     this.partsCatalog = partsCatalog;
     this.onPartPointerDown = onPartPointerDown;
     this.activePartId = null;
+    this.hoverPartId = null;
 
     this.background = scene.add.graphics();
     this.titleText = scene.add.text(0, 0, 'Parts Palette', {
@@ -17,12 +18,21 @@ export class PartPalettePanel {
     });
     this.titleText.setOrigin(0, 0);
 
-    this.hintText = scene.add.text(0, 0, 'Press and drag a module into the grid.', {
+    this.hintText = scene.add.text(0, 0, 'Drag modules into the grid or tap a starter rocket for quick testing.', {
       fontFamily: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif',
       fontSize: '14px',
       color: '#9ab7d5'
     });
     this.hintText.setOrigin(0, 0);
+
+    this.previewText = scene.add.text(0, 0, '', {
+      fontFamily: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif',
+      fontSize: '13px',
+      color: '#d8e8f7',
+      lineSpacing: 4,
+      wordWrap: { width: 180 }
+    });
+    this.previewText.setOrigin(0, 0);
 
     this.itemViews = partsCatalog.map((part) => this.#createItemView(part));
   }
@@ -57,11 +67,15 @@ export class PartPalettePanel {
     });
 
     container.on('pointerover', () => {
+      this.hoverPartId = part.id;
       this.scene.game.canvas.style.cursor = 'pointer';
+      this.render();
     });
 
     container.on('pointerout', () => {
+      this.hoverPartId = null;
       this.scene.game.canvas.style.cursor = 'default';
+      this.render();
     });
 
     return {
@@ -91,14 +105,16 @@ export class PartPalettePanel {
     }
 
     const padding = Math.round(16 * this.metrics.uiScale);
-    const itemGap = Math.round(10 * this.metrics.uiScale);
-    const headerHeight = Math.round(56 * this.metrics.uiScale);
-    const compactGrid = this.rect.height < 220;
+    const itemGap = Math.round(8 * this.metrics.uiScale);
+    const headerHeight = Math.round(84 * this.metrics.uiScale);
+    const previewHeight = Math.round(72 * this.metrics.uiScale);
+    const availableHeight = this.rect.height - headerHeight - previewHeight - padding * 2;
+    const compactGrid = availableHeight < 250;
     const columns = compactGrid ? (this.rect.width < 420 ? 2 : 3) : 1;
     const rows = Math.ceil(this.itemViews.length / columns);
-    const innerHeight = this.rect.height - headerHeight - padding * 2 - itemGap * Math.max(0, rows - 1);
+    const innerHeight = availableHeight - itemGap * Math.max(0, rows - 1);
     const itemHeight = Math.round(
-      Math.max(compactGrid ? 42 : 56, Math.min(compactGrid ? 68 : 88, innerHeight / rows))
+      Math.max(compactGrid ? 42 : 54, Math.min(compactGrid ? 68 : 84, innerHeight / rows))
     );
     const itemWidth = compactGrid
       ? Math.round((this.rect.width - padding * 2 - itemGap * Math.max(0, columns - 1)) / columns)
@@ -116,10 +132,10 @@ export class PartPalettePanel {
     this.titleText.setFontSize(Math.max(17, Math.round(22 * this.metrics.uiScale)));
 
     this.hintText.setPosition(this.rect.x + padding, this.titleText.y + this.titleText.height + Math.round(4 * this.metrics.uiScale));
-    this.hintText.setFontSize(Math.max(12, Math.round(13 * this.metrics.uiScale)));
+    this.hintText.setFontSize(Math.max(11, Math.round(12 * this.metrics.uiScale)));
     this.hintText.setWordWrapWidth(this.rect.width - padding * 2);
 
-    const startY = this.rect.y + headerHeight + padding;
+    const startY = this.rect.y + headerHeight;
 
     this.itemViews.forEach((view, index) => {
       const column = compactGrid ? index % columns : 0;
@@ -130,6 +146,7 @@ export class PartPalettePanel {
         width: itemWidth,
         height: itemHeight
       };
+      const highlighted = this.activePartId === view.part.id || this.hoverPartId === view.part.id;
 
       view.container.setPosition(itemRect.x, itemRect.y);
       view.container.setSize(itemRect.width, itemRect.height);
@@ -140,8 +157,8 @@ export class PartPalettePanel {
         view.background,
         { x: 0, y: 0, width: itemRect.width, height: itemRect.height },
         {
-          fillColor: this.activePartId === view.part.id ? 0x23486f : 0x102038,
-          strokeColor: this.activePartId === view.part.id ? 0xffc58b : 0x5f7ea4,
+          fillColor: highlighted ? 0x23486f : 0x102038,
+          strokeColor: highlighted ? 0xffc58b : 0x5f7ea4,
           radius: 16,
           fillAlpha: 1
         }
@@ -155,13 +172,23 @@ export class PartPalettePanel {
 
       view.nameText.setPosition(iconSize + 26, compactGrid ? 10 : 12);
       view.nameText.setFontSize(Math.max(12, Math.round((compactGrid ? 14 : 17) * this.metrics.uiScale)));
-
       view.descriptionText.setVisible(!compactGrid);
+
       if (!compactGrid) {
         view.descriptionText.setPosition(iconSize + 26, view.nameText.y + view.nameText.height + 4);
-        view.descriptionText.setFontSize(Math.max(11, Math.round(12 * this.metrics.uiScale)));
+        view.descriptionText.setFontSize(Math.max(10, Math.round(12 * this.metrics.uiScale)));
         view.descriptionText.setWordWrapWidth(itemRect.width - iconSize - 40);
       }
     });
+
+    const previewPart =
+      this.partsCatalog.find((part) => part.id === (this.hoverPartId ?? this.activePartId)) ??
+      this.partsCatalog[0];
+    this.previewText.setPosition(this.rect.x + padding, this.rect.y + this.rect.height - previewHeight);
+    this.previewText.setFontSize(Math.max(11, Math.round(12 * this.metrics.uiScale)));
+    this.previewText.setWordWrapWidth(this.rect.width - padding * 2);
+    this.previewText.setText(
+      `${previewPart.name}\nMass ${previewPart.mass.toFixed(1)} t  Fuel ${Math.round(previewPart.fuel)} u  Thrust ${Math.round(previewPart.thrust)} kN\n${previewPart.description}`
+    );
   }
 }

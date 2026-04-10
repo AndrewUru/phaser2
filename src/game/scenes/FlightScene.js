@@ -3,6 +3,7 @@ import { SCENE_KEYS } from '../config/sceneKeys.js';
 import { theme } from '../config/theme.js';
 import { createResponsiveController } from '../layout/responsiveController.js';
 import { computeFlightLayout } from '../layout/sceneLayouts.js';
+import { createRect } from '../layout/viewport.js';
 import { drawPanel } from '../ui/panel.js';
 import { createTextButton } from '../ui/textButton.js';
 import { gameState } from '../state/GameStateStore.js';
@@ -12,11 +13,28 @@ import { FlightInputController } from '../flight/FlightInputController.js';
 import { FlightRenderer } from '../flight/FlightRenderer.js';
 import { FlightDebugOverlay } from '../flight/FlightDebugOverlay.js';
 import { createFlightTelemetry, createMissionResult } from '../flight/FlightTelemetry.js';
+import { HowToPlayOverlay } from '../ui/help/HowToPlayOverlay.js';
+import { getTutorialHint } from '../ui/help/TutorialHints.js';
+import { getMissionDefinition } from '../mission/MissionDefinitions.js';
+
+function createCenteredOverlayRect(metrics, widthFactor = 0.62, heightFactor = 0.46) {
+  const width = Math.min(metrics.contentRect.width, Math.round(metrics.width * widthFactor));
+  const height = Math.min(metrics.contentRect.height, Math.round(metrics.height * heightFactor));
+
+  return createRect(
+    Math.round(metrics.centerX - width * 0.5),
+    Math.round(metrics.centerY - height * 0.5),
+    width,
+    height
+  );
+}
 
 export class FlightScene extends Phaser.Scene {
   constructor() {
     super(SCENE_KEYS.FLIGHT);
     this.resultTransitionPending = false;
+    this.previousStageSeparationCount = 0;
+    this.previousStatus = 'flying';
   }
 
   create() {
@@ -25,10 +43,42 @@ export class FlightScene extends Phaser.Scene {
     this.flightState = createFlightStateFromSnapshot(this.launchSnapshot);
 
     if (this.flightState) {
+      const mission = getMissionDefinition();
+      const tutorial = getTutorialHint('flight');
+
       this.renderer = new FlightRenderer(this);
       this.renderer.setMission(this.launchSnapshot);
       this.inputController = new FlightInputController(this);
       this.debugOverlay = new FlightDebugOverlay(this);
+      this.helpOverlay = new HowToPlayOverlay(this, {
+        pages: [
+          {
+            title: tutorial.title,
+            body: `${tutorial.lines.join('\n')}\n\nGoal: reach ${mission.targetAltitude} meters without crashing or tumbling.`
+          },
+          {
+            title: 'Flight Controls',
+            body:
+              'Space or GO ramps thrust.\nA/D or arrows steer.\nShift, Enter, or STG separates the next stage after burnout.\nPress F1 or ` for debug telemetry.'
+          }
+        ]
+      });
+
+      this.helpKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.H);
+      this.escapeKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+      this.helpKey?.on('down', () => this.helpOverlay.toggle(0));
+      this.escapeKey?.on('down', () => {
+        if (this.helpOverlay.visible) {
+          this.helpOverlay.hide();
+        }
+      });
+
+      this.previousStageSeparationCount = this.flightState.stageSeparationCount;
+      this.previousStatus = this.flightState.status;
+
+      if (!snapshot.flight.lastTelemetry) {
+        this.helpOverlay.show(0);
+      }
     } else {
       this.createFallbackView();
     }
@@ -38,6 +88,11 @@ export class FlightScene extends Phaser.Scene {
       computeFlightLayout,
       (layout, metrics) => this.applyLayout(layout, metrics)
     );
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.helpKey?.destroy();
+      this.escapeKey?.destroy();
+    });
   }
 
   createFallbackView() {
@@ -78,6 +133,7 @@ export class FlightScene extends Phaser.Scene {
       this.renderer.layoutScene(layout, metrics);
       this.inputController.layout(layout, metrics);
       this.debugOverlay.layout(layout, metrics);
+      this.helpOverlay.layout(createCenteredOverlayRect(metrics), metrics);
       this.renderer.update(this.flightState, 0);
       this.debugOverlay.update(this.flightState, this.renderer.getDebugSnapshot(this.flightState));
       return;
@@ -118,10 +174,31 @@ export class FlightScene extends Phaser.Scene {
       return;
     }
 
+    if (this.helpOverlay.visible) {
+      this.renderer.update(this.flightState, 0);
+      this.debugOverlay.update(this.flightState, this.renderer.getDebugSnapshot(this.flightState));
+      return;
+    }
+
     const dt = Math.min(delta / 1000, 1 / 20);
     const input = this.inputController.getInputState();
 
     FlightSimulator.update(this.flightState, input, dt);
+
+    if (this.flightState.stageSeparationCount > this.previousStageSeparationCount) {
+      this.renderer.triggerShake(7, 0.2);
+      this.previousStageSeparationCount = this.flightState.stageSeparationCount;
+    }
+
+    if (
+      this.previousStatus === 'flying' &&
+      this.flightState.status === 'failed' &&
+      this.flightState.resultCode === 'impact'
+    ) {
+      this.renderer.triggerShake(12, 0.35);
+    }
+    this.previousStatus = this.flightState.status;
+
     this.renderer.update(this.flightState, dt);
 
     const telemetry = createFlightTelemetry(this.flightState);

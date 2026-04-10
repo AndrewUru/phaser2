@@ -5,6 +5,7 @@ export class BuildControlsPanel {
   constructor(scene, callbacks) {
     this.scene = scene;
     this.callbacks = callbacks;
+    this.awaitingClearConfirmation = false;
 
     this.background = scene.add.graphics();
     this.titleText = scene.add.text(0, 0, 'Controls', {
@@ -15,10 +16,31 @@ export class BuildControlsPanel {
     });
     this.titleText.setOrigin(0, 0);
 
+    this.statusText = scene.add.text(0, 0, '', {
+      fontFamily: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif',
+      fontSize: '13px',
+      color: '#9ab7d5',
+      wordWrap: { width: 260 }
+    });
+    this.statusText.setOrigin(0, 0);
+
     this.buttons = {
       launch: createTextButton(scene, { label: 'Launch', onClick: callbacks.onLaunch }),
       delete: createTextButton(scene, { label: 'Delete Selected', onClick: callbacks.onDelete }),
-      clear: createTextButton(scene, { label: 'Clear Build', onClick: callbacks.onClear }),
+      clear: createTextButton(scene, {
+        label: 'Clear Build',
+        onClick: () => {
+          if (this.awaitingClearConfirmation) {
+            this.awaitingClearConfirmation = false;
+            callbacks.onClear();
+            this.renderStatus();
+            return;
+          }
+
+          this.awaitingClearConfirmation = true;
+          this.renderStatus();
+        }
+      }),
       menu: createTextButton(scene, { label: 'Mission Menu', onClick: callbacks.onMenu })
     };
   }
@@ -30,8 +52,9 @@ export class BuildControlsPanel {
     const padding = Math.round(16 * metrics.uiScale);
     const titleGap = Math.round(12 * metrics.uiScale);
     const innerWidth = rect.width - padding * 2;
-    const startY = rect.y + padding + Math.round(28 * metrics.uiScale) + titleGap;
-    const buttonHeight = Math.round(Math.max(42, Math.min(58, (rect.height - startY + rect.y - padding - titleGap) / 2.4)));
+    const statusHeight = Math.round(32 * metrics.uiScale);
+    const startY = rect.y + padding + Math.round(28 * metrics.uiScale) + titleGap + statusHeight;
+    const buttonHeight = Math.round(Math.max(40, Math.min(58, (rect.height - startY + rect.y - padding - titleGap) / 2.4)));
     const gap = Math.round(10 * metrics.uiScale);
     const singleColumn = innerWidth < 280;
 
@@ -44,6 +67,10 @@ export class BuildControlsPanel {
 
     this.titleText.setPosition(rect.x + padding, rect.y + padding);
     this.titleText.setFontSize(Math.max(17, Math.round(20 * metrics.uiScale)));
+
+    this.statusText.setPosition(rect.x + padding, this.titleText.y + this.titleText.height + 4);
+    this.statusText.setFontSize(Math.max(11, Math.round(12 * metrics.uiScale)));
+    this.statusText.setWordWrapWidth(rect.width - padding * 2);
 
     if (singleColumn) {
       const order = ['launch', 'delete', 'clear', 'menu'];
@@ -82,10 +109,24 @@ export class BuildControlsPanel {
         height: buttonHeight
       });
     }
+
+    this.renderStatus();
+  }
+
+  renderStatus() {
+    this.statusText.setText(
+      this.awaitingClearConfirmation
+        ? 'Press Clear Build again to confirm.'
+        : 'Tip: press Delete or Backspace to remove the selected part.'
+    );
   }
 
   setState({ canLaunch, hasSelection }) {
     this.buttons.launch.setEnabled(canLaunch);
     this.buttons.delete.setEnabled(hasSelection);
+    if (!hasSelection) {
+      this.awaitingClearConfirmation = false;
+      this.renderStatus();
+    }
   }
 }

@@ -146,6 +146,56 @@ Telemetry flow:
 3. Each frame the simulator updates state, telemetry is derived by `FlightTelemetry`, and the latest snapshot is stored in `GameStateStore`.
 4. On success or failure, the final mission result is shaped by `FlightTelemetry` and shown by `ResultScene`.
 
+## Onboarding and help flow
+
+Phase 5 adds a lightweight help layer without mixing tutorial copy into the build or flight rules.
+
+- `src/game/ui/help/TutorialHints.js` stores concise contextual hints for menu, build, and flight.
+- `src/game/ui/help/HowToPlayOverlay.js` is the shared skippable overlay used by scenes that need more explanation.
+- `MenuScene` exposes player-facing entry actions such as `Build Rocket`, `How to Play`, and `Mission Brief`.
+- `BuildScene` keeps a compact hangar hint panel visible while the detailed overlay remains optional and dismissible.
+- `FlightScene` can pause behind the help overlay so first-time instructions do not burn mission time before the player is ready.
+
+The important architectural rule is that onboarding stays in UI modules and scene orchestration, not in the build validator or flight simulator.
+
+## Mission and scoring flow
+
+Phase 5 adds a simple mission framing layer around the existing telemetry pipeline.
+
+- `src/game/mission/MissionDefinitions.js` defines the active mission brief and target altitude.
+- `src/game/mission/MissionEvaluator.js` decides whether the flight result satisfied the mission goal.
+- `src/game/mission/ScoreCalculator.js` converts mission outcome plus telemetry into a readable score breakdown.
+- `src/game/flight/FlightTelemetry.js` remains the bridge between runtime state and the final mission result shape stored in `GameStateStore`.
+
+Mission flow:
+
+1. The build phase produces a clean launch payload.
+2. The flight phase runs the simulator and emits telemetry snapshots.
+3. On mission end, `FlightTelemetry` shapes a result object and mission modules add outcome and score data.
+4. `ResultScene` renders that mission debrief without recalculating flight logic in-scene.
+
+## Starter rockets and QA flow
+
+Phase 5 also improves manual browser balancing and QA iteration.
+
+- `src/game/flight/FlightTestRockets.js` defines starter and test rockets for quick build loading.
+- `src/game/ui/build/StarterRocketAction.js` surfaces those presets in the hangar without bypassing the normal build pipeline.
+- `FlightConstants.js` still exposes mutable tuning values through `globalThis.__rocketFlightTuning`.
+- `FlightDebugOverlay.js` shows live mission telemetry plus the active tuning values and supports resetting tuning back to defaults.
+
+This keeps QA utilities modular: test builds are loaded through `BuildState`, staging still comes from `StagePlanner`, and flight tuning remains centralized in one constants module.
+
+## Player-facing loop
+
+The current vertical slice now reads as a complete end-to-end game loop instead of a systems demo:
+
+1. `MenuScene` frames the mission and points the player toward the hangar.
+2. `BuildScene` teaches the assembly rules with contextual hints, starter rockets, validation, and responsive grid tooling.
+3. `FlightScene` launches the serialized vehicle, supports staged ascent, and provides readable HUD, warning, and debug feedback.
+4. `ResultScene` delivers a mission debrief with outcome, score, breakdown, and retry paths.
+
+The loop stays scene-first and modular: scenes orchestrate, build modules own assembly rules, flight modules own simulation and rendering, and mission modules own evaluation and scoring.
+
 ## Folder structure
 
 ```text

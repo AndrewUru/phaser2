@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FLIGHT_CONSTANTS, resetFlightTuningToDefaults } from './FlightConstants.js';
 
 function radiansToDegrees(value) {
   return (value * 180) / Math.PI;
@@ -21,7 +22,8 @@ export class FlightDebugOverlay {
 
     this.toggleKeys = {
       f1: scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.F1),
-      backquote: scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.BACKTICK)
+      backquote: scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.BACKTICK),
+      reset: scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     };
 
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.handleToggle, this);
@@ -39,6 +41,10 @@ export class FlightDebugOverlay {
     ) {
       this.visible = !this.visible;
       this.applyVisibility();
+    }
+
+    if (this.visible && this.toggleKeys.reset && Phaser.Input.Keyboard.JustDown(this.toggleKeys.reset)) {
+      resetFlightTuningToDefaults();
     }
   }
 
@@ -98,7 +104,10 @@ export class FlightDebugOverlay {
         `twr ${state.currentTwr.toFixed(2)}  fuel ${state.fuelRemaining.toFixed(1)}u\n` +
         `alt ${Math.max(0, state.position.y).toFixed(1)}m  vy ${state.velocity.y.toFixed(2)}m/s\n` +
         `angle ${radiansToDegrees(state.angle).toFixed(1)}deg  av ${state.angularVelocity.toFixed(2)}rad/s\n` +
-        `stability ${(state.stabilityFactor * 100).toFixed(0)}  throttle ${(state.throttle * 100).toFixed(0)}%`
+        `stability ${(state.stabilityFactor * 100).toFixed(0)}  throttle ${(state.throttle * 100).toFixed(0)}%\n` +
+        `g ${FLIGHT_CONSTANTS.gravity.toFixed(2)}  drag ${FLIGHT_CONSTANTS.dragQuadratic.toFixed(4)}\n` +
+        `ramp ${FLIGHT_CONSTANTS.thrustRampUpRate.toFixed(2)}  recover ${FLIGHT_CONSTANTS.autoLevelStrength.toFixed(2)}\n` +
+        `crash tilt ${FLIGHT_CONSTANTS.crashTiltDegrees.toFixed(0)}deg  R resets tuning`
     );
 
     this.worldGraphics.clear();

@@ -1,3 +1,7 @@
+import { DEFAULT_MISSION_ID } from '../mission/MissionDefinitions.js';
+import { evaluateMission } from '../mission/MissionEvaluator.js';
+import { calculateMissionScore } from '../mission/ScoreCalculator.js';
+
 function radiansToDegrees(value) {
   return (value * 180) / Math.PI;
 }
@@ -38,8 +42,8 @@ export function createFlightTelemetry(state) {
   };
 }
 
-export function createMissionResult(state, telemetry) {
-  return {
+export function createMissionResult(state, telemetry, missionId = DEFAULT_MISSION_ID) {
+  const baseResult = {
     success: state.status === 'success',
     code: state.resultCode,
     title: state.resultLabel,
@@ -63,5 +67,20 @@ export function createMissionResult(state, telemetry) {
       degrees: radiansToDegrees(state.angle)
     },
     telemetry
+  };
+
+  const mission = evaluateMission(baseResult, missionId);
+  const score = calculateMissionScore(baseResult, mission);
+
+  return {
+    ...baseResult,
+    missionId: mission.mission.id,
+    missionTitle: mission.title,
+    missionBrief: mission.mission.brief,
+    missionOutcome: mission.outcomeText,
+    success: mission.success,
+    score: score.total,
+    scoreBreakdown: score.breakdown,
+    title: mission.success ? 'Mission Success' : baseResult.title || 'Mission Failed'
   };
 }
