@@ -8,16 +8,19 @@ function clampRange(value, min, max) {
 }
 
 export function computeBootLayout(metrics) {
-  const cardWidth = Math.min(metrics.contentRect.width, Phaser.Math.Clamp(metrics.width * 0.52, 320, 580));
-  const cardHeight = Phaser.Math.Clamp(metrics.height * 0.28, 180, 260);
+  const cardWidth = Math.min(
+    metrics.contentRect.width,
+    Phaser.Math.Clamp(metrics.width * 0.56, 360, 680)
+  );
+  const cardHeight = Phaser.Math.Clamp(metrics.height * 0.34, 220, 320);
   const card = createRect(
     metrics.centerX - cardWidth * 0.5,
     metrics.centerY - cardHeight * 0.5,
     cardWidth,
     cardHeight
   );
-  const inner = insetRect(card, Math.round(20 * metrics.uiScale));
-  const trackHeight = Math.round(20 * metrics.uiScale);
+  const inner = insetRect(card, Math.round(24 * metrics.uiScale));
+  const trackHeight = Math.round(22 * metrics.uiScale);
   const track = createRect(
     inner.x,
     inner.y + inner.height - trackHeight - Math.round(18 * metrics.uiScale),
@@ -27,19 +30,30 @@ export function computeBootLayout(metrics) {
 
   return {
     card,
+    inner,
+    eyebrowPosition: {
+      x: inner.x,
+      y: inner.y + Math.round(10 * metrics.uiScale)
+    },
     titlePosition: {
-      x: card.x + card.width * 0.5,
-      y: inner.y + Math.round(26 * metrics.uiScale)
+      x: inner.x,
+      y: inner.y + Math.round(32 * metrics.uiScale)
     },
     subtitlePosition: {
-      x: card.x + card.width * 0.5,
-      y: inner.y + Math.round(74 * metrics.uiScale)
+      x: inner.x,
+      y: inner.y + Math.round(94 * metrics.uiScale)
     },
     statusPosition: {
       x: inner.x,
-      y: track.y - Math.round(30 * metrics.uiScale)
+      y: track.y - Math.round(34 * metrics.uiScale)
     },
-    track
+    percentPosition: {
+      x: inner.x + inner.width,
+      y: track.y - Math.round(36 * metrics.uiScale)
+    },
+    track,
+    subtitleWidth: inner.width,
+    statusWidth: Math.max(160, Math.round(inner.width * 0.68))
   };
 }
 
@@ -229,10 +243,10 @@ export function computeFlightLayout(metrics) {
   const frame = metrics.contentRect;
   const compact = metrics.width < 880 || metrics.isPortrait;
   const inset = Math.round(metrics.gutter * 0.45);
-  const hudWidth = compact ? Math.min(frame.width - inset * 2, 320) : clampRange(frame.width * 0.25, 250, 320);
-  const hudHeight = compact ? clampRange(frame.height * 0.2, 108, 146) : clampRange(frame.height * 0.22, 116, 146);
-  const statusWidth = compact ? Math.min(frame.width - inset * 2, 360) : clampRange(frame.width * 0.34, 300, 420);
-  const statusHeight = compact ? 74 : 80;
+  const hudWidth = compact ? Math.min(frame.width - inset * 2, 336) : clampRange(frame.width * 0.27, 270, 340);
+  const hudHeight = compact ? clampRange(frame.height * 0.23, 124, 170) : clampRange(frame.height * 0.26, 150, 182);
+  const statusWidth = compact ? Math.min(frame.width - inset * 2, 390) : clampRange(frame.width * 0.36, 340, 460);
+  const statusHeight = compact ? 92 : 98;
   const debugWidth = compact ? Math.min(frame.width - inset * 2, 320) : clampRange(frame.width * 0.25, 250, 320);
   const debugHeight = compact ? 148 : 186;
   const debugY = compact
@@ -257,20 +271,20 @@ export function computeFlightLayout(metrics) {
     ),
     touchControls: {
       left: {
-        x: frame.x + inset + 44,
-        y: frame.y + frame.height - inset - 54
+        x: frame.x + inset + 70,
+        y: frame.y + frame.height - inset - 72
       },
       right: {
-        x: frame.x + inset + 130,
-        y: frame.y + frame.height - inset - 54
+        x: frame.x + inset + 176,
+        y: frame.y + frame.height - inset - 72
       },
       thrust: {
-        x: frame.x + frame.width - inset - 58,
-        y: frame.y + frame.height - inset - 62
+        x: frame.x + frame.width - inset - 76,
+        y: frame.y + frame.height - inset - 86
       },
       stage: {
-        x: frame.x + frame.width - inset - 62,
-        y: frame.y + frame.height - inset - 142
+        x: frame.x + frame.width - inset - 76,
+        y: frame.y + frame.height - inset - 176
       }
     },
     fallbackPanel: createRect(

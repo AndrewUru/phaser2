@@ -115,8 +115,11 @@ export class FlightDebugOverlay {
       return;
     }
 
-    const { worldRect, targetAltitudeY, rocketCenter } = debugSnapshot;
-    if (targetAltitudeY >= worldRect.y && targetAltitudeY <= worldRect.y + worldRect.height) {
+    const { worldRect, targetAltitudeY, rocketCenter, planetCenter, targetRadius } = debugSnapshot;
+    if (planetCenter && targetRadius) {
+      this.worldGraphics.lineStyle(2, 0x8de0a2, 0.45);
+      this.worldGraphics.strokeCircle(planetCenter.x, planetCenter.y, targetRadius);
+    } else if (targetAltitudeY >= worldRect.y && targetAltitudeY <= worldRect.y + worldRect.height) {
       this.worldGraphics.lineStyle(2, 0x8de0a2, 0.65);
       this.worldGraphics.lineBetween(worldRect.x, targetAltitudeY, worldRect.x + worldRect.width, targetAltitudeY);
     }

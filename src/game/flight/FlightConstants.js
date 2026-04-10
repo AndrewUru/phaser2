@@ -21,22 +21,37 @@ export const DEFAULT_FLIGHT_CONSTANTS = {
   tiltFailureAltitude: 120,
   tiltFailureDuration: 1.1,
   tiltControlPenalty: 0.32,
-  targetAltitude: 2000,
+  targetAltitude: 3200,
+  minOrbitalVelocity: 62,
+  maxOrbitalVelocityTolerance: 95,
+  maxVerticalVelocityInOrbit: 3,
+  minTimeInOrbit: 15,
   cameraFollowStartAltitude: 120,
   cameraFollowLookahead: 240,
   cameraVelocityLookahead: 0.9,
   cameraFollowSpeed: 3.2,
-  worldPixelsPerUnit: 0.22,
+  cameraLaunchZoom: 1.55,
+  cameraMinZoom: 0.16,
+  cameraZoomTargetAltitude: 3200,
+  cameraFarFollowFactor: 0.22,
+  cameraHorizontalFollowFactor: 0.35,
+  worldPixelsPerUnit: 0.24,
+  planetRadius: 4600,
+  trajectorySampleDistance: 32,
+  maxTrajectoryPoints: 420,
   touchdownAltitude: -12,
   crashVerticalSpeed: -18,
   crashHorizontalSpeed: 14,
   crashTiltDegrees: 28,
   stageSeparationImpulse: 6,
-  minimumStageGapTime: 0.22
+  minimumStageGapTime: 0.22,
+  liftoffPadClearanceThreshold: 15,
+  liftoffInitialBoostDuration: 0.35,
+  liftoffInitialBoostMultiplier: 1.3,
 };
 
 export const FLIGHT_CONSTANTS = {
-  ...DEFAULT_FLIGHT_CONSTANTS
+  ...DEFAULT_FLIGHT_CONSTANTS,
 };
 
 export function resetFlightTuningToDefaults() {
@@ -47,13 +62,13 @@ export function resetFlightTuningToDefaults() {
   return FLIGHT_CONSTANTS;
 }
 
-if (typeof globalThis !== 'undefined') {
+if (typeof globalThis !== "undefined") {
   globalThis.__rocketFlightTuning = FLIGHT_CONSTANTS;
 }
 
 export const FLIGHT_RESULT_CODES = {
-  SUCCESS: 'success',
-  OUT_OF_FUEL: 'out_of_fuel',
-  EXCESSIVE_TILT: 'excessive_tilt',
-  IMPACT: 'impact'
+  SUCCESS: "success",
+  OUT_OF_FUEL: "out_of_fuel",
+  EXCESSIVE_TILT: "excessive_tilt",
+  IMPACT: "impact",
 };

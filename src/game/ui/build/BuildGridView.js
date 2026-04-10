@@ -1,5 +1,5 @@
 import { BUILD_GRID } from '../../build/buildConstants.js';
-import { getPartDefinition } from '../../build/partsCatalog.js';
+import { getPartAssetKey, getPartDefinition } from '../../build/partsCatalog.js';
 import { drawPanel } from '../panel.js';
 
 export class BuildGridView {
@@ -15,9 +15,11 @@ export class BuildGridView {
 
     this.background = scene.add.graphics();
     this.grid = scene.add.graphics();
+    this.placementSpriteLayer = scene.add.container(0, 0);
     this.placementsGraphics = scene.add.graphics();
     this.ghostGraphics = scene.add.graphics();
     this.attachmentGraphics = scene.add.graphics();
+    this.placementSprites = new Map();
     this.headerText = scene.add.text(0, 0, 'Assembly Grid', {
       fontFamily: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif',
       fontSize: '24px',
@@ -33,6 +35,11 @@ export class BuildGridView {
       wordWrap: { width: 360 }
     });
     this.helperText.setOrigin(0, 0);
+
+    this.placementSpriteLayer.setDepth(1);
+    this.placementsGraphics.setDepth(2);
+    this.ghostGraphics.setDepth(3);
+    this.attachmentGraphics.setDepth(4);
   }
 
   layout(rect, metrics) {
@@ -194,22 +201,45 @@ export class BuildGridView {
     });
 
     this.placementsGraphics.clear();
+    const visiblePlacementIds = new Set();
     this.placements.forEach((placement) => {
       if (placement.id === this.suppressedPlacementId) {
+        this.#hidePlacementSprite(placement.id);
         return;
       }
 
       const definition = getPartDefinition(placement.partId);
       const rect = this.#getPixelRectForPlacement(placement);
       const selected = placement.id === this.selectionId;
+      const assetKey = getPartAssetKey(placement.partId);
+      const hasTexture = assetKey && this.scene.textures.exists(assetKey);
 
-      this.placementsGraphics.fillStyle(definition.paletteColor, 1);
-      this.placementsGraphics.fillRoundedRect(rect.x + 4, rect.y + 4, rect.width - 8, rect.height - 8, 14);
-      this.placementsGraphics.fillStyle(definition.accentColor, 0.9);
-      this.placementsGraphics.fillRect(rect.x + 10, rect.y + 10, rect.width - 20, Math.max(8, rect.height * 0.18));
+      visiblePlacementIds.add(placement.id);
+
+      if (hasTexture) {
+        this.#renderPlacementSprite(placement.id, assetKey, rect);
+      } else {
+        this.#hidePlacementSprite(placement.id);
+      }
+
+      if (!hasTexture) {
+        this.placementsGraphics.fillStyle(definition.paletteColor, 1);
+        this.placementsGraphics.fillRoundedRect(rect.x + 4, rect.y + 4, rect.width - 8, rect.height - 8, 14);
+        this.placementsGraphics.fillStyle(definition.accentColor, 0.9);
+        this.placementsGraphics.fillRect(rect.x + 10, rect.y + 10, rect.width - 20, Math.max(8, rect.height * 0.18));
+      } else {
+        this.placementsGraphics.fillStyle(0x08101c, selected ? 0.22 : 0.12);
+        this.placementsGraphics.fillRoundedRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6, 14);
+      }
 
       this.placementsGraphics.lineStyle(selected ? 4 : 2, selected ? 0xffd98f : 0xe9f4ff, selected ? 1 : 0.55);
       this.placementsGraphics.strokeRoundedRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6, 14);
+    });
+
+    [...this.placementSprites.keys()].forEach((placementId) => {
+      if (!visiblePlacementIds.has(placementId)) {
+        this.#destroyPlacementSprite(placementId);
+      }
     });
 
     this.ghostGraphics.clear();
@@ -232,5 +262,46 @@ export class BuildGridView {
       width: definition.size.width * this.cellSize,
       height: definition.size.height * this.cellSize
     };
+  }
+
+  #renderPlacementSprite(placementId, assetKey, rect) {
+    let sprite = this.placementSprites.get(placementId);
+    if (!sprite) {
+      sprite = this.scene.add.image(0, 0, assetKey);
+      sprite.setOrigin(0.5, 0.5);
+      this.placementSpriteLayer.add(sprite);
+      this.placementSprites.set(placementId, sprite);
+    } else if (sprite.texture?.key !== assetKey) {
+      sprite.setTexture(assetKey);
+    }
+
+    const frame = sprite.frame;
+    const sourceWidth = frame?.realWidth ?? frame?.width ?? rect.width;
+    const sourceHeight = frame?.realHeight ?? frame?.height ?? rect.height;
+    const targetWidth = Math.max(8, rect.width - 10);
+    const targetHeight = Math.max(8, rect.height - 10);
+    const scale = Math.min(
+      targetWidth / Math.max(1, sourceWidth),
+      targetHeight / Math.max(1, sourceHeight)
+    );
+
+    sprite.setVisible(true);
+    sprite.setPosition(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+    sprite.setScale(scale);
+  }
+
+  #hidePlacementSprite(placementId) {
+    const sprite = this.placementSprites.get(placementId);
+    if (sprite) {
+      sprite.setVisible(false);
+    }
+  }
+
+  #destroyPlacementSprite(placementId) {
+    const sprite = this.placementSprites.get(placementId);
+    if (sprite) {
+      sprite.destroy();
+      this.placementSprites.delete(placementId);
+    }
   }
 }

@@ -59,7 +59,7 @@ export class FlightScene extends Phaser.Scene {
           {
             title: 'Flight Controls',
             body:
-              'Space or GO ramps thrust.\nA/D or arrows steer.\nShift, Enter, or STG separates the next stage after burnout.\nPress F1 or ` for debug telemetry.'
+              'Space or THRUST ramps thrust.\nA/D or arrows steer.\nShift, Enter, or STAGE separates the next stage after burnout.\nPress F1 or ` for debug telemetry.'
           }
         ]
       });

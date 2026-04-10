@@ -1,29 +1,54 @@
+import { theme } from '../config/theme.js';
+
 export function drawLoadingBackdrop(graphics, metrics) {
   graphics.clear();
 
-  graphics.fillStyle(0x08101c, 1);
+  graphics.fillStyle(theme.colors.bgBottom, 1);
   graphics.fillRect(0, 0, metrics.width, metrics.height);
 
-  graphics.fillStyle(0x10233d, 1);
-  graphics.fillRect(0, 0, metrics.width, metrics.height * 0.62);
+  graphics.fillStyle(theme.colors.bgTop, 1);
+  graphics.fillRect(0, 0, metrics.width, metrics.height * 0.7);
 
-  graphics.fillStyle(0x20486f, 0.22);
-  graphics.fillCircle(metrics.width * 0.18, metrics.height * 0.2, metrics.shorterSide * 0.18);
-  graphics.fillCircle(metrics.width * 0.84, metrics.height * 0.14, metrics.shorterSide * 0.14);
+  graphics.fillStyle(theme.colors.bgMid, 0.9);
+  graphics.fillRect(0, metrics.height * 0.52, metrics.width, metrics.height * 0.24);
 
-  graphics.fillStyle(0x0e1728, 1);
-  graphics.fillRect(0, metrics.height * 0.62, metrics.width, metrics.height * 0.38);
+  graphics.fillStyle(theme.colors.glow, 0.08);
+  graphics.fillCircle(
+    metrics.width * 0.16,
+    metrics.height * 0.24,
+    metrics.shorterSide * 0.24
+  );
+  graphics.fillStyle(0x8f62ff, 0.06);
+  graphics.fillCircle(
+    metrics.width * 0.84,
+    metrics.height * 0.14,
+    metrics.shorterSide * 0.28
+  );
+  graphics.fillStyle(0xffa86a, 0.045);
+  graphics.fillCircle(
+    metrics.width * 0.72,
+    metrics.height * 0.72,
+    metrics.shorterSide * 0.2
+  );
 
-  graphics.lineStyle(2, 0x315579, 0.3);
-  const columnGap = Math.max(80, Math.round(metrics.width / 10));
+  graphics.lineStyle(1, 0xffffff, 0.03);
+  const columnGap = Math.max(86, Math.round(metrics.width / 12));
   for (let x = 0; x <= metrics.width; x += columnGap) {
-    graphics.lineBetween(x, metrics.height * 0.62, x, metrics.height);
+    graphics.lineBetween(x, 0, x, metrics.height);
   }
 
-  const rowGap = Math.max(46, Math.round(metrics.height / 12));
-  for (let y = metrics.height * 0.62; y <= metrics.height; y += rowGap) {
+  const rowGap = Math.max(52, Math.round(metrics.height / 13));
+  for (let y = 0; y <= metrics.height; y += rowGap) {
     graphics.lineBetween(0, y, metrics.width, y);
   }
+
+  graphics.lineStyle(2, theme.colors.accentCool, 0.08);
+  graphics.strokeRect(
+    metrics.width * 0.08,
+    metrics.height * 0.1,
+    metrics.width * 0.84,
+    metrics.height * 0.8
+  );
 }
 
 export function drawWorkshopBackdrop(graphics, metrics) {

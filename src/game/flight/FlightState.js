@@ -1,5 +1,5 @@
-import { FLIGHT_CONSTANTS } from './FlightConstants.js';
-import { StagePlanner } from './StagePlanner.js';
+import { FLIGHT_CONSTANTS } from "./FlightConstants.js";
+import { StagePlanner } from "./StagePlanner.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -17,12 +17,14 @@ function cloneStages(snapshot) {
   return stages.map((stage) => ({
     ...structuredClone(stage),
     remainingFuel: stage.fuel,
-    detached: false
+    detached: false,
   }));
 }
 
 function getAttachedStages(state) {
-  return state.stages.filter((stage, index) => !stage.detached && index >= state.currentStageIndex);
+  return state.stages.filter(
+    (stage, index) => !stage.detached && index >= state.currentStageIndex,
+  );
 }
 
 function getAttachedPartIds(attachedStages) {
@@ -32,8 +34,14 @@ function getAttachedPartIds(attachedStages) {
 export function refreshFlightStageContext(state) {
   const attachedStages = getAttachedStages(state);
   const activeStage = attachedStages[0] ?? null;
-  const totalFuelRemaining = attachedStages.reduce((total, stage) => total + stage.remainingFuel, 0);
-  const attachedDryMass = attachedStages.reduce((total, stage) => total + stage.dryMass, 0);
+  const totalFuelRemaining = attachedStages.reduce(
+    (total, stage) => total + stage.remainingFuel,
+    0,
+  );
+  const attachedDryMass = attachedStages.reduce(
+    (total, stage) => total + stage.dryMass,
+    0,
+  );
   const attachedFuelMass = totalFuelRemaining * FLIGHT_CONSTANTS.fuelMassFactor;
   const currentMass = Math.max(1.1, attachedDryMass + attachedFuelMass);
 
@@ -41,14 +49,17 @@ export function refreshFlightStageContext(state) {
   state.activeStage = activeStage;
   state.attachedStages = attachedStages.map((stage) => stage.id);
   state.fuelRemaining = totalFuelRemaining;
-  state.totalFuelCapacity = attachedStages.reduce((total, stage) => total + stage.fuel, 0);
+  state.totalFuelCapacity = attachedStages.reduce(
+    (total, stage) => total + stage.fuel,
+    0,
+  );
   state.activeStageFuelRemaining = activeStage?.remainingFuel ?? 0;
   state.activeStageThrust = activeStage?.thrust ?? 0;
   state.currentMass = currentMass;
-   state.stageReady = Boolean(
+  state.stageReady = Boolean(
     activeStage &&
-      activeStage.remainingFuel <= 0 &&
-      state.currentStageIndex < state.stages.length - 1
+    activeStage.remainingFuel <= 0 &&
+    state.currentStageIndex < state.stages.length - 1,
   );
   state.currentTwr =
     currentMass > 0
@@ -66,7 +77,11 @@ export function createFlightStateFromSnapshot(snapshot) {
     return null;
   }
 
-  const stabilityScore = clamp(stats.stability ?? stats.stabilityScore ?? 50, 0, 100);
+  const stabilityScore = clamp(
+    stats.stability ?? stats.stabilityScore ?? 50,
+    0,
+    100,
+  );
   const stages = cloneStages(snapshot);
 
   const state = {
@@ -96,13 +111,13 @@ export function createFlightStateFromSnapshot(snapshot) {
     cameraAltitude: 0,
     currentMass: Math.max(1.5, stats.mass ?? 1.5),
     currentTwr: 0,
-    status: 'flying',
+    status: "flying",
     resultCode: null,
-    resultLabel: '',
-    resultSummary: '',
+    resultLabel: "",
+    resultSummary: "",
     finalVelocity: { x: 0, y: 0 },
     finalAngle: 0,
-    eventMessage: 'Stage 1 ready',
+    eventMessage: "Stage 1 ready",
     eventTimer: 1.6,
     tiltExposure: 0,
     steeringIdleTime: 0,
@@ -110,7 +125,14 @@ export function createFlightStateFromSnapshot(snapshot) {
     stageReady: false,
     activeStage: null,
     activePartIds: [],
-    attachedStages: []
+    attachedStages: [],
+    launchHold: true,
+    liftoffTime: -1,
+    horizontalVelocity: 0,
+    orbitalVelocityRequired: 0,
+    isOrbitalVelocityAchieved: false,
+    orbitalStable: false,
+    timeInStableOrbit: 0,
   };
 
   return refreshFlightStageContext(state);

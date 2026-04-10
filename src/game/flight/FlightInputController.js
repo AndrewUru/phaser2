@@ -1,32 +1,46 @@
 import Phaser from 'phaser';
 
-function createButton(scene, label) {
+function createButton(scene, { label, caption, variant = 'secondary' }) {
   const container = scene.add.container(0, 0);
+  const glow = scene.add.graphics();
   const background = scene.add.graphics();
-  const text = scene.add.text(0, 0, label, {
+  const captionText = scene.add.text(0, 0, caption, {
+    fontFamily: '"Consolas", "Lucida Console", monospace',
+    fontSize: '11px',
+    color: '#9ab7d5',
+    fontStyle: '700'
+  });
+  const labelText = scene.add.text(0, 0, label, {
     fontFamily: '"Trebuchet MS", "Lucida Sans Unicode", sans-serif',
     fontSize: '16px',
     color: '#edf6ff',
     fontStyle: '700'
   });
 
-  text.setOrigin(0.5);
-  container.add([background, text]);
+  captionText.setOrigin(0.5, 0.5);
+  labelText.setOrigin(0.5, 0.5);
+  container.add([glow, background, captionText, labelText]);
 
-  const hitArea = new Phaser.Geom.Circle(0, 0, 40);
-  container.setSize(80, 80);
-  container.setInteractive(hitArea, Phaser.Geom.Circle.Contains);
+  const hitArea = new Phaser.Geom.Rectangle(-50, -40, 100, 80);
+  container.setSize(100, 80);
+  container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
   return {
     root: container,
+    glow,
     background,
-    text,
+    captionText,
+    labelText,
+    variant,
     pressed: false,
-    radius: 40,
-    setLayout(x, y, radius) {
-      this.radius = radius;
-      hitArea.setTo(0, 0, radius);
+    width: 100,
+    height: 80,
+    setLayout(x, y, width, height) {
+      this.width = width;
+      this.height = height;
+      hitArea.setTo(-width * 0.5, -height * 0.5, width, height);
       container.setPosition(x, y);
+      container.setSize(width, height);
       this.redraw();
     },
     setPressed(value) {
@@ -34,12 +48,63 @@ function createButton(scene, label) {
       this.redraw();
     },
     redraw() {
+      const radius = Math.round(Math.min(this.width, this.height) * 0.28);
+      const isPrimary = this.variant === 'primary';
+      const isAccent = this.variant === 'accent';
+      const fillColor = this.pressed
+        ? 0xff9a57
+        : isPrimary
+          ? 0x11243d
+          : 0x102038;
+      const glowColor = this.pressed
+        ? 0xff9a57
+        : isAccent
+          ? 0x74c2ff
+          : 0x6dd3ff;
+      const borderColor = this.pressed
+        ? 0xffd9b5
+        : isPrimary
+          ? 0x89d1ff
+          : 0x7b9bc2;
+
+      glow.clear();
+      glow.fillStyle(glowColor, this.pressed ? 0.18 : isPrimary ? 0.1 : 0.06);
+      glow.fillRoundedRect(
+        -this.width * 0.5 - 6,
+        -this.height * 0.5 - 6,
+        this.width + 12,
+        this.height + 12,
+        radius + 8
+      );
+
       background.clear();
-      background.fillStyle(this.pressed ? 0xff9a57 : 0x13253f, this.pressed ? 0.88 : 0.55);
-      background.fillCircle(0, 0, this.radius);
-      background.lineStyle(3, this.pressed ? 0xffd1ac : 0x7b9bc2, 0.9);
-      background.strokeCircle(0, 0, this.radius);
-      text.setFontSize(Math.max(12, Math.round(this.radius * 0.44)));
+      background.fillStyle(fillColor, this.pressed ? 0.92 : 0.76);
+      background.fillRoundedRect(-this.width * 0.5, -this.height * 0.5, this.width, this.height, radius);
+      background.fillStyle(isPrimary ? 0x193452 : 0x16283f, 0.32);
+      background.fillRoundedRect(
+        -this.width * 0.5 + 2,
+        -this.height * 0.5 + 2,
+        this.width - 4,
+        this.height * 0.42,
+        radius
+      );
+      background.lineStyle(1.5, borderColor, this.pressed ? 0.98 : 0.82);
+      background.strokeRoundedRect(-this.width * 0.5, -this.height * 0.5, this.width, this.height, radius);
+      background.lineStyle(1, 0xffffff, this.pressed ? 0.14 : 0.08);
+      background.lineBetween(
+        -this.width * 0.5 + 12,
+        -this.height * 0.5 + 14,
+        this.width * 0.5 - 12,
+        -this.height * 0.5 + 14
+      );
+
+      captionText.setPosition(0, -this.height * 0.22);
+      captionText.setFontSize(Math.max(10, Math.round(this.height * 0.14)));
+      captionText.setColor(this.pressed ? '#fff0df' : '#9ab7d5');
+
+      labelText.setPosition(0, this.height * 0.06);
+      labelText.setFontSize(Math.max(14, Math.round(this.height * (isPrimary ? 0.2 : 0.18))));
+      labelText.setColor(this.pressed ? '#1f1206' : '#edf6ff');
     }
   };
 }
@@ -66,10 +131,10 @@ export class FlightInputController {
     };
 
     this.buttons = {
-      left: createButton(scene, 'L'),
-      right: createButton(scene, 'R'),
-      thrust: createButton(scene, 'GO'),
-      stage: createButton(scene, 'STG')
+      left: createButton(scene, { label: '<', caption: 'LEFT', variant: 'secondary' }),
+      right: createButton(scene, { label: '>', caption: 'RIGHT', variant: 'secondary' }),
+      thrust: createButton(scene, { label: 'THRUST', caption: 'PRIMARY', variant: 'primary' }),
+      stage: createButton(scene, { label: 'STAGE', caption: 'SEPARATE', variant: 'accent' })
     };
 
     this.#bindHoldButton(this.buttons.left, 'left');
@@ -126,12 +191,23 @@ export class FlightInputController {
     const right = layout.touchControls.right;
     const thrust = layout.touchControls.thrust;
     const stage = layout.touchControls.stage;
-    const radius = Math.round(Math.max(24, Math.min(42, 30 * metrics.uiScale)));
+    const baseWidth = Math.round(Math.max(84, Math.min(112, 94 * metrics.uiScale)));
+    const baseHeight = Math.round(Math.max(66, Math.min(82, 74 * metrics.uiScale)));
 
-    this.buttons.left.setLayout(left.x, left.y, radius);
-    this.buttons.right.setLayout(right.x, right.y, radius);
-    this.buttons.thrust.setLayout(thrust.x, thrust.y, Math.round(radius * 1.12));
-    this.buttons.stage.setLayout(stage.x, stage.y, Math.round(radius * 0.98));
+    this.buttons.left.setLayout(left.x, left.y, baseWidth, baseHeight);
+    this.buttons.right.setLayout(right.x, right.y, baseWidth, baseHeight);
+    this.buttons.thrust.setLayout(
+      thrust.x,
+      thrust.y,
+      Math.round(baseWidth * 1.18),
+      Math.round(baseHeight * 1.42)
+    );
+    this.buttons.stage.setLayout(
+      stage.x,
+      stage.y,
+      Math.round(baseWidth * 1.08),
+      Math.round(baseHeight * 0.82)
+    );
   }
 
   getInputState() {
