@@ -1,0 +1,33 @@
+:root {
+  color-scheme: dark;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top, #264668 0%, #12243d 45%, #08101c 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100svh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, #264668 0%, #12243d 45%, #08101c 100%);
+}
+
+#app {
+  position: relative;
+}
+
+canvas {
+  display: block;
+}
