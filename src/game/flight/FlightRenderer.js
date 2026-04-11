@@ -647,7 +647,14 @@ export class FlightRenderer {
     );
 
     if (spaceDarkness > 0.001) {
-      this.worldGraphics.fillStyle(0x07111d, 0.18 + spaceDarkness * 0.58);
+      this.worldGraphics.fillStyle(0x07111d, 0.1 + spaceDarkness * 0.82);
+      this.worldGraphics.fillRect(
+        worldRect.x,
+        worldRect.y,
+        worldRect.width,
+        worldRect.height,
+      );
+      this.worldGraphics.fillStyle(0x02050c, 0.08 + spaceDarkness * 0.18);
       this.worldGraphics.fillRect(
         worldRect.x,
         worldRect.y,
@@ -661,7 +668,7 @@ export class FlightRenderer {
       const starColumns = 9;
       const starRows = 6;
       const xGap = worldRect.width / starColumns;
-      const yGap = (surfacePoint.y - worldRect.y) / Math.max(1, starRows);
+      const yGap = worldRect.height / Math.max(1, starRows);
 
       this.worldGraphics.fillStyle(0xeaf4ff, 0.12 + starAlpha * 0.34);
       for (let column = 0; column < starColumns; column += 1) {
@@ -739,6 +746,17 @@ export class FlightRenderer {
       surfacePoint.x + 250 * surfaceBlend,
       surfacePoint.y + 18,
     );
+
+    if (spaceDarkness > 0.32) {
+      const lowerVoidAlpha = (spaceDarkness - 0.32) / 0.68;
+      this.worldGraphics.fillStyle(0x02050c, 0.24 + lowerVoidAlpha * 0.7);
+      this.worldGraphics.fillRect(
+        worldRect.x,
+        surfacePoint.y,
+        worldRect.width,
+        worldRect.y + worldRect.height - surfacePoint.y,
+      );
+    }
 
     const padScale = clamp(Math.pow(this.cameraZoom, 0.6), 0.18, 1);
     const padPulse = 0.5 + 0.5 * Math.sin(time * 3.4);
