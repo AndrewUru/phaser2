@@ -35,6 +35,7 @@ export class FlightScene extends Phaser.Scene {
     this.resultTransitionPending = false;
     this.previousStageSeparationCount = 0;
     this.previousStatus = 'flying';
+    this.cameraDragState = null;
   }
 
   create() {
@@ -50,6 +51,7 @@ export class FlightScene extends Phaser.Scene {
       this.renderer.setMission(this.launchSnapshot);
       this.inputController = new FlightInputController(this);
       this.debugOverlay = new FlightDebugOverlay(this);
+      this.setupMouseCameraControls();
       this.helpOverlay = new HowToPlayOverlay(this, {
         pages: [
           {
@@ -92,6 +94,7 @@ export class FlightScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.helpKey?.destroy();
       this.escapeKey?.destroy();
+      this.teardownMouseCameraControls();
     });
   }
 
@@ -216,5 +219,96 @@ export class FlightScene extends Phaser.Scene {
 
   persistResult(telemetry) {
     gameState.setResult(createMissionResult(this.flightState, telemetry));
+  }
+
+  setupMouseCameraControls() {
+    this.input.mouse?.disableContextMenu();
+
+    this.handleCameraPointerDown = (pointer, currentlyOver = []) => {
+      if (!this.flightState || this.helpOverlay?.visible) {
+        return;
+      }
+
+      const dragButtonDown =
+        pointer.rightButtonDown?.() ||
+        pointer.middleButtonDown?.() ||
+        pointer.button === 1 ||
+        pointer.button === 2;
+      const overInteractive = Array.isArray(currentlyOver) && currentlyOver.length > 0;
+
+      if (!dragButtonDown || overInteractive) {
+        return;
+      }
+
+      this.cameraDragState = {
+        pointerId: pointer.id,
+        lastX: pointer.x,
+        lastY: pointer.y
+      };
+      this.game.canvas.style.cursor = 'grabbing';
+    };
+
+    this.handleCameraPointerMove = (pointer) => {
+      if (!this.cameraDragState || this.cameraDragState.pointerId !== pointer.id) {
+        return;
+      }
+
+      const deltaX = pointer.x - this.cameraDragState.lastX;
+      const deltaY = pointer.y - this.cameraDragState.lastY;
+      this.cameraDragState.lastX = pointer.x;
+      this.cameraDragState.lastY = pointer.y;
+      this.renderer?.panCameraByPixels(deltaX, deltaY);
+    };
+
+    this.handleCameraPointerUp = (pointer) => {
+      if (!this.cameraDragState || this.cameraDragState.pointerId !== pointer.id) {
+        return;
+      }
+
+      this.cameraDragState = null;
+      this.game.canvas.style.cursor = 'default';
+    };
+
+    this.handleCameraWheel = (_pointer, gameObjects, _deltaX, deltaY) => {
+      if (!this.flightState || this.helpOverlay?.visible) {
+        return;
+      }
+
+      if (Array.isArray(gameObjects) && gameObjects.length > 0) {
+        return;
+      }
+
+      this.renderer?.zoomCameraByWheel(deltaY);
+    };
+
+    this.handleCameraReset = () => {
+      this.renderer?.resetManualCamera();
+    };
+
+    this.input.on('pointerdown', this.handleCameraPointerDown);
+    this.input.on('pointermove', this.handleCameraPointerMove);
+    this.input.on('pointerup', this.handleCameraPointerUp);
+    this.input.on('pointerupoutside', this.handleCameraPointerUp);
+    this.input.on('wheel', this.handleCameraWheel);
+    this.input.keyboard?.on('keydown-C', this.handleCameraReset);
+  }
+
+  teardownMouseCameraControls() {
+    if (this.handleCameraPointerDown) {
+      this.input.off('pointerdown', this.handleCameraPointerDown);
+    }
+    if (this.handleCameraPointerMove) {
+      this.input.off('pointermove', this.handleCameraPointerMove);
+    }
+    if (this.handleCameraPointerUp) {
+      this.input.off('pointerup', this.handleCameraPointerUp);
+      this.input.off('pointerupoutside', this.handleCameraPointerUp);
+    }
+    if (this.handleCameraWheel) {
+      this.input.off('wheel', this.handleCameraWheel);
+    }
+    if (this.handleCameraReset) {
+      this.input.keyboard?.off('keydown-C', this.handleCameraReset);
+    }
   }
 }

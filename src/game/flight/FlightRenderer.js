@@ -47,10 +47,16 @@ export class FlightRenderer {
     this.visiblePartSignature = "";
     this.partRects = [];
     this.exhaustPorts = [];
+    this.autoCameraAltitude = 0;
+    this.autoCameraOffsetX = 0;
+    this.autoCameraZoom = 1;
     this.cameraAltitude = 0;
     this.cameraOffsetX = 0;
     this.cameraZoom = 1;
     this.viewBlend = 0;
+    this.manualCameraAltitude = 0;
+    this.manualCameraOffsetX = 0;
+    this.manualZoomMultiplier = 1;
     this.trajectoryPoints = [];
     this.shakeTimer = 0;
     this.shakeStrength = 0;
@@ -99,10 +105,16 @@ export class FlightRenderer {
   setMission(snapshot) {
     this.snapshot = snapshot;
     this.visiblePartSignature = "";
+    this.autoCameraAltitude = 0;
+    this.autoCameraOffsetX = 0;
+    this.autoCameraZoom = 1;
     this.cameraAltitude = 0;
     this.cameraOffsetX = 0;
     this.cameraZoom = 1;
     this.viewBlend = 0;
+    this.manualCameraAltitude = 0;
+    this.manualCameraOffsetX = 0;
+    this.manualZoomMultiplier = 1;
     this.trajectoryPoints = [{ x: 0, y: 0 }];
     this.partSprites.forEach((sprite) => sprite.destroy());
     this.partSprites.clear();
@@ -283,20 +295,28 @@ export class FlightRenderer {
       viewBlend;
 
     if (state.launchHold) {
-      this.cameraAltitude = 0;
-      this.cameraOffsetX = 0;
-      this.cameraZoom = FLIGHT_CONSTANTS.cameraLaunchZoom;
+      this.autoCameraAltitude = 0;
+      this.autoCameraOffsetX = 0;
+      this.autoCameraZoom = FLIGHT_CONSTANTS.cameraLaunchZoom;
       this.viewBlend = 0;
       state.cameraAltitude = 0;
     } else {
-      this.cameraAltitude +=
-        (targetCameraAltitude - this.cameraAltitude) * alpha;
-      this.cameraOffsetX +=
-        (targetCameraOffsetX - this.cameraOffsetX) * alpha;
-      this.cameraZoom += (targetZoom - this.cameraZoom) * alpha;
+      this.autoCameraAltitude +=
+        (targetCameraAltitude - this.autoCameraAltitude) * alpha;
+      this.autoCameraOffsetX +=
+        (targetCameraOffsetX - this.autoCameraOffsetX) * alpha;
+      this.autoCameraZoom += (targetZoom - this.autoCameraZoom) * alpha;
       this.viewBlend += (viewBlend - this.viewBlend) * alpha;
-      state.cameraAltitude = this.cameraAltitude;
+      state.cameraAltitude = this.autoCameraAltitude;
     }
+
+    this.cameraAltitude = this.autoCameraAltitude + this.manualCameraAltitude;
+    this.cameraOffsetX = this.autoCameraOffsetX + this.manualCameraOffsetX;
+    this.cameraZoom = clamp(
+      this.autoCameraZoom * this.manualZoomMultiplier,
+      FLIGHT_CONSTANTS.cameraMinZoom * 0.7,
+      3.8,
+    );
 
     this.#recordTrajectoryPoint(state);
     this.shakeTimer = Math.max(0, this.shakeTimer - dt);
@@ -309,6 +329,32 @@ export class FlightRenderer {
   triggerShake(strength = 10, duration = 0.22) {
     this.shakeStrength = strength;
     this.shakeTimer = duration;
+  }
+
+  panCameraByPixels(deltaX, deltaY) {
+    if (!this.worldScale) {
+      return;
+    }
+
+    this.manualCameraOffsetX -= deltaX / this.worldScale;
+    this.manualCameraAltitude += deltaY / this.worldScale;
+    this.manualCameraAltitude = clamp(this.manualCameraAltitude, -320, 16000);
+    this.manualCameraOffsetX = clamp(this.manualCameraOffsetX, -6000, 6000);
+  }
+
+  zoomCameraByWheel(deltaY) {
+    const zoomFactor = deltaY > 0 ? 0.9 : 1.1;
+    this.manualZoomMultiplier = clamp(
+      this.manualZoomMultiplier * zoomFactor,
+      0.7,
+      6,
+    );
+  }
+
+  resetManualCamera() {
+    this.manualCameraAltitude = 0;
+    this.manualCameraOffsetX = 0;
+    this.manualZoomMultiplier = 1;
   }
 
   getDebugSnapshot(state) {
@@ -410,7 +456,7 @@ export class FlightRenderer {
     this.partRects = parts.map((part) => ({
       part,
       x: (part.origin.x - minX - widthCells * 0.5) * this.rocketCellPixels,
-      y: -(part.origin.y - minY + part.size.height) * this.rocketCellPixels,
+      y: (part.origin.y - maxY - 1) * this.rocketCellPixels,
       width: part.size.width * this.rocketCellPixels,
       height: part.size.height * this.rocketCellPixels,
     }));
@@ -499,26 +545,6 @@ export class FlightRenderer {
       worldRect.width,
       worldRect.height * 0.28,
     );
-    this.skyGraphics.fillStyle(0xffffff, 0.08);
-    this.skyGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.24,
-      worldRect.y + worldRect.height * 0.24,
-      worldRect.width * 0.3,
-      worldRect.height * 0.08,
-    );
-    this.skyGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.72,
-      worldRect.y + worldRect.height * 0.18,
-      worldRect.width * 0.26,
-      worldRect.height * 0.07,
-    );
-    this.skyGraphics.fillStyle(0xffffff, 0.05);
-    this.skyGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.58,
-      worldRect.y + worldRect.height * 0.42,
-      worldRect.width * 0.4,
-      worldRect.height * 0.1,
-    );
   }
 
   #drawDynamicWorld(state) {
@@ -555,45 +581,53 @@ export class FlightRenderer {
       (FLIGHT_CONSTANTS.planetRadius + state.targetAltitude) * worldScale;
     const surfaceBlend = 1 - smoothstep(180, 2200, altitude);
     const orbitalBlend = smoothstep(320, 3200, altitude) * this.viewBlend;
+    const spaceDarkness = smoothstep(900, 5400, altitude);
+    const nearSpaceBlend = smoothstep(2200, 5200, altitude);
 
     if (orbitalBlend > 0.001) {
-      this.worldGraphics.fillStyle(0x6fc0ff, 0.03 + orbitalBlend * 0.05);
+      this.worldGraphics.fillStyle(0x8bd7ff, 0.04 + orbitalBlend * 0.08);
       this.worldGraphics.fillCircle(
         planetCenter.x,
         planetCenter.y - planetRadius * 0.14,
-        planetRadius * 1.24,
+        planetRadius * 1.2,
       );
-      this.worldGraphics.fillStyle(0x6fc0ff, 0.05 + orbitalBlend * 0.1);
+      this.worldGraphics.fillStyle(0x63bfff, 0.05 + orbitalBlend * 0.1);
       this.worldGraphics.fillCircle(
         planetCenter.x,
         planetCenter.y,
-        planetRadius * 1.08,
+        planetRadius * 1.045,
       );
-      this.worldGraphics.fillStyle(0x3f9be7, 0.07 + orbitalBlend * 0.16);
+      this.worldGraphics.fillStyle(0x2f8ddb, 0.06 + orbitalBlend * 0.12);
       this.worldGraphics.fillCircle(
         planetCenter.x,
         planetCenter.y,
-        planetRadius * 1.02,
+        planetRadius * 1.012,
       );
-      this.worldGraphics.fillStyle(0x25588d, 0.62 + orbitalBlend * 0.28);
+      this.worldGraphics.fillStyle(0x173b67, 0.82 + orbitalBlend * 0.16);
       this.worldGraphics.fillCircle(
         planetCenter.x,
         planetCenter.y,
         planetRadius,
       );
-      this.worldGraphics.fillStyle(0x4ea46f, 0.14 + orbitalBlend * 0.18);
-      this.worldGraphics.fillEllipse(
-        planetCenter.x - planetRadius * 0.18,
-        planetCenter.y - planetRadius * 0.52,
-        planetRadius * 0.92,
-        planetRadius * 0.28,
+      this.worldGraphics.lineStyle(
+        Math.max(2, 2 + orbitalBlend * 2),
+        0x8edbff,
+        0.16 + orbitalBlend * 0.28,
       );
-      this.worldGraphics.fillStyle(0x73c08b, 0.12 + orbitalBlend * 0.14);
-      this.worldGraphics.fillEllipse(
-        planetCenter.x + planetRadius * 0.26,
-        planetCenter.y - planetRadius * 0.36,
-        planetRadius * 0.74,
-        planetRadius * 0.24,
+      this.worldGraphics.strokeCircle(
+        planetCenter.x,
+        planetCenter.y,
+        planetRadius * 1.005,
+      );
+      this.worldGraphics.lineStyle(
+        Math.max(1, 1.2 + orbitalBlend * 1.4),
+        0xd9f2ff,
+        0.1 + orbitalBlend * 0.18,
+      );
+      this.worldGraphics.strokeCircle(
+        planetCenter.x,
+        planetCenter.y,
+        planetRadius * 1.018,
       );
     }
 
@@ -601,13 +635,52 @@ export class FlightRenderer {
     this.worldGraphics.strokeCircle(planetCenter.x, planetCenter.y, targetRadius);
 
     const hazeY = surfacePoint.y - worldRect.height * 0.02;
-    this.worldGraphics.fillStyle(0xffffff, 0.04 + surfaceBlend * 0.08);
+    this.worldGraphics.fillStyle(
+      0xffffff,
+      Math.max(0, 0.02 + surfaceBlend * 0.07 - nearSpaceBlend * 0.08),
+    );
     this.worldGraphics.fillEllipse(
       worldRect.x + worldRect.width * 0.5,
       hazeY,
-      worldRect.width * 1.18,
-      worldRect.height * 0.16,
+      worldRect.width * lerp(1.18, 0.96, nearSpaceBlend),
+      worldRect.height * lerp(0.11, 0.018, nearSpaceBlend),
     );
+
+    if (spaceDarkness > 0.001) {
+      this.worldGraphics.fillStyle(0x07111d, 0.18 + spaceDarkness * 0.58);
+      this.worldGraphics.fillRect(
+        worldRect.x,
+        worldRect.y,
+        worldRect.width,
+        surfacePoint.y - worldRect.y,
+      );
+    }
+
+    if (spaceDarkness > 0.25) {
+      const starAlpha = (spaceDarkness - 0.25) / 0.75;
+      const starColumns = 9;
+      const starRows = 6;
+      const xGap = worldRect.width / starColumns;
+      const yGap = (surfacePoint.y - worldRect.y) / Math.max(1, starRows);
+
+      this.worldGraphics.fillStyle(0xeaf4ff, 0.12 + starAlpha * 0.34);
+      for (let column = 0; column < starColumns; column += 1) {
+        for (let row = 0; row < starRows; row += 1) {
+          const starX =
+            worldRect.x +
+            xGap * (column + 0.5) +
+            ((row * 17 + column * 23) % 19) -
+            9;
+          const starY =
+            worldRect.y +
+            yGap * (row + 0.35) +
+            ((column * 11 + row * 7) % 15) -
+            7;
+          const radius = ((column + row) % 3 === 0 ? 1.6 : 1.1) + starAlpha * 0.3;
+          this.worldGraphics.fillCircle(starX, starY, radius);
+        }
+      }
+    }
 
     if (this.trajectoryPoints.length > 1) {
       this.worldGraphics.lineStyle(
@@ -628,22 +701,6 @@ export class FlightRenderer {
 
       this.worldGraphics.strokePath();
     }
-
-    const cloudOffset =
-      (this.cameraAltitude * worldScale * 0.1) % (worldRect.height * 0.6);
-    this.worldGraphics.fillStyle(0xffffff, 0.05 + surfaceBlend * 0.08);
-    this.worldGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.22,
-      worldRect.y + worldRect.height * 0.18 + cloudOffset,
-      worldRect.width * 0.22,
-      worldRect.height * 0.08,
-    );
-    this.worldGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.72,
-      worldRect.y + worldRect.height * 0.32 + cloudOffset * 0.7,
-      worldRect.width * 0.26,
-      worldRect.height * 0.1,
-    );
     this.worldGraphics.fillStyle(0x5ea259, 0.95 * surfaceBlend);
     this.worldGraphics.fillRect(
       worldRect.x,
@@ -682,25 +739,6 @@ export class FlightRenderer {
       surfacePoint.x + 250 * surfaceBlend,
       surfacePoint.y + 18,
     );
-    this.worldGraphics.fillStyle(0x0c1623, 0.52 * orbitalBlend);
-    this.worldGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.16,
-      surfacePoint.y + worldRect.height * 0.05,
-      worldRect.width * 0.22,
-      worldRect.height * 0.1,
-    );
-    this.worldGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.48,
-      surfacePoint.y + worldRect.height * 0.05,
-      worldRect.width * 0.32,
-      worldRect.height * 0.12,
-    );
-    this.worldGraphics.fillEllipse(
-      worldRect.x + worldRect.width * 0.84,
-      surfacePoint.y + worldRect.height * 0.06,
-      worldRect.width * 0.26,
-      worldRect.height * 0.1,
-    );
 
     const padScale = clamp(Math.pow(this.cameraZoom, 0.6), 0.18, 1);
     const padPulse = 0.5 + 0.5 * Math.sin(time * 3.4);
@@ -712,7 +750,7 @@ export class FlightRenderer {
     const surfacePadAlpha = clamp(surfaceBlend * 1.15, 0, 1);
     const orbitalPadAlpha = clamp(orbitalBlend + (1 - surfaceBlend) * 0.3, 0, 1);
 
-    this.padGraphics.fillStyle(0x09111c, 0.22 * orbitalPadAlpha);
+    this.padGraphics.fillStyle(0x09111c, 0.16 * surfacePadAlpha);
     this.padGraphics.fillEllipse(
       surfacePoint.x,
       surfacePoint.y + 18 * padScale,

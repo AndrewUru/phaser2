@@ -1,8 +1,8 @@
 export const assetManifest = {
   images: [
-    { key: "part-capsule", url: "/assets/capsula2.png" },
-    { key: "part-fuel-tank", url: "/assets/TANQUE_GRANDE.png" },
-    { key: "part-engine", url: "/assets/motor1.png" },
+    { key: "part-capsule", url: "/assets/CAPSULA224.png" },
+    { key: "part-fuel-tank", url: "/assets/TANQUEGRANDE224.png" },
+    { key: "part-engine", url: "/assets/MOTOR224.png" },
   ],
   spritesheets: [],
   audio: [],
